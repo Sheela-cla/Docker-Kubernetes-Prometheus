@@ -1,0 +1,156 @@
+
+/*General body and font styles */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f3f4f6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+/* Container for the main calculator */
+.calculator-container {
+    background: #ffffff;
+    border-radius: 1.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Display screen for calculations */
+.display-container {
+    background-color: #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    text-align: right;
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #1f2937;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+/* Grid for calculator buttons */
+.grid {
+    display: grid;
+    grid-gap: 1rem;
+}
+
+.grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.col-span-2 {
+    grid-column: span 2 / span 2;
+}
+
+/* Styles for buttons */
+button {
+    padding: 1rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #4b5563;
+    background-color: #d1d5db;
+    border: none;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+/* Hover and active states for buttons */
+button:hover {
+    background-color: #9ca3af;
+    transform: translateY(-2px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* Specific styles for operator buttons */
+.bg-blue-500 {
+    background: linear-gradient(145deg, #3b82f6, #2563eb);
+    color: white;
+}
+.bg-blue-500:hover {
+    background: linear-gradient(145deg, #2563eb, #1e40af);
+}
+
+.bg-gray-500 {
+    background: linear-gradient(145deg, #6b7280, #4b5563);
+    color: white;
+}
+.bg-gray-500:hover {
+    background: linear-gradient(145deg, #4b5563, #374151);
+}
+
+/* Styles for the history items */
+.history-item {
+    background-color: #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.history-item div {
+    font-size: 1rem;
+}
+
+/* Utility classes for display and spacing */
+.hidden {
+    display: none;
+}
+
+.flex {
+    display: flex;
+}
+
+.flex-col {
+    flex-direction: column;
+}
+
+.space-y-4 > *:not(:last-child) {
+    margin-bottom: 1rem;
+}
+
+.mb-6 {
+    margin-bottom: 1.5rem;
+}
+
+.mt-4 {
+    margin-top: 1rem;
+}
+
+.text-3xl {
+    font-size: 1.875rem;
+}
+
+.font-bold {
+    font-weight: 700;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.text-gray-800 {
+    color: #1f2937;
+}
+
+.p-6 {
+    padding: 1.5rem;
+}
+
+.rounded-lg {
+    border-radius: 0.5rem;
+}
+
+.shadow-xl {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
