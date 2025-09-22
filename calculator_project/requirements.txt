@@ -1,5 +1,4 @@
-asgiref==3.9.1
-Django==5.2.6
-djangorestframework==3.16.1
-psycopg2-binary==2.9.10
-sqlparse==0.5.3
+    Django
+    djangorestframework
+    psycopg2-binary
+    dj-database-url
