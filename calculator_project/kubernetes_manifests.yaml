@@ -1,41 +1,57 @@
-# This file defines all the necessary Kubernetes resources
-# for the PostgreSQL database and the calculator application.
+---
+# 1. ISTIO VIRTUAL SERVICE (New)
 
-# --- PostgreSQL Database ---
-
-# Secret to store sensitive information like the database password.
-# It's referenced by the postgres-deployment.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: calculator-app-virtualservice
+  namespace: sheela 
+spec:
+  hosts:
+    - "calculator.dazzle.zebrain.se" 
+  gateways:
+    - istio-system/ingress-gateway # Assumes Istio's default ingress gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: calculator-app-service
+            port:
+              number: 80 
+---
+# 2. POSTGRES SECRET 
 apiVersion: v1
 kind: Secret
 metadata:
-  name: postgres-db-secret
+  name: postgres-secret
+  namespace: sheela
 type: Opaque
 stringData:
   POSTGRES_USER: user
   POSTGRES_PASSWORD: supersecretpassword123!
-  POSTGRES_DB: my_database
-
+  PGDATABASE: my_database
 ---
-# Persistent Volume Claim (PVC) to request storage for the PostgreSQL database.
-# This ensures that the database data persists even if the pod is restarted or moved.
+# 3. POSTGRES PVC
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-pvc
+  namespace: sheela
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
-
 ---
-# Deployment for the PostgreSQL database.
-# This manages the single Pod running the database container.
+# 4. POSTGRES DEPLOYMENT 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres-deployment
+  namespace: sheela
 spec:
   replicas: 1
   selector:
@@ -49,13 +65,12 @@ spec:
       containers:
         - name: postgres
           image: postgres:13
-          env:
-            # Set the PGDATA environment variable to use a subdirectory
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
           envFrom:
             - secretRef:
-                name: postgres-db-secret
+                name: postgres-secret
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           ports:
             - containerPort: 5432
           volumeMounts:
@@ -65,14 +80,13 @@ spec:
         - name: postgres-storage
           persistentVolumeClaim:
             claimName: postgres-pvc
-
 ---
-# Service to expose the PostgreSQL database within the cluster.
-# This allows the calculator app to connect to the database using the service name.
+# 5. POSTGRES SERVICE 
 apiVersion: v1
 kind: Service
 metadata:
   name: postgres-service
+  namespace: sheela
 spec:
   selector:
     app: postgres
@@ -81,24 +95,12 @@ spec:
       port: 5432
       targetPort: 5432
 ---
-# --- Calculator Application ---
-# Secret for the application's database credentials
-apiVersion: v1
-kind: Secret
-metadata:
-  name: calculator-app-secret
-type: Opaque
-stringData:
-  PGUSER: user
-  PGPASSWORD: supersecretpassword123!
-  PGDATABASE: my_database
----
-
-# Deployment for the calculator application.
+# 6. CALCULATOR APP DEPLOYMENT
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: calculator-app-deployment
+  namespace: sheela 
 spec:
   replicas: 1
   selector:
@@ -109,218 +111,82 @@ spec:
       labels:
         app: calculator-app
     spec:
-      # The init container ensures the database is ready and migrations are run
-      # before the main Django application starts.
+      imagePullSecrets:
+      - name: acr-secret 
+      
+      # Init containers to wait for DB and run migrations (Corrected in previous step)
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.36.1
-          command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo "Waiting for database..."; sleep 2; done;']
-        - name: migrate-db
-          image: ngorongoro.azurecr.io/calculator_app:v1.6
-          envFrom:
-            - secretRef:
-                name: calculator-app-secret
+          image: busybox:latest
+          command: ['sh', '-c', 'until nc -z $PGHOST $PGPORT; do echo waiting for postgres...; sleep 2; done;']
           env:
             - name: PGHOST
               value: postgres-service
             - name: PGPORT
               value: "5432"
+
+        - name: migrate-db
+          image: ngorongoro.azurecr.io/calculator_app:v1.7
           command: ['python', 'manage.py', 'migrate']
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: PGDATABASE
+            - name: PGHOST
+              value: postgres-service
+            - name: PGPORT
+              value: "5432"
+      
+      # Main App Container
       containers:
         - name: calculator-app
-          # Updated the image tag to v1.6
-          image: ngorongoro.azurecr.io/calculator_app:v1.6
-          envFrom:
-            - secretRef:
-                name: calculator-app-secret
+          image: ngorongoro.azurecr.io/calculator_app:v1.7 
           env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: PGDATABASE
             - name: PGHOST
               value: postgres-service
             - name: PGPORT
               value: "5432"
-            # Add this environment variable to fix the DisallowedHost error.
-            - name: DJANGO_ALLOWED_HOSTS
-              value: "*"
-          # This container port must match the port the Django app is running on (8000).
           ports:
             - containerPort: 8000
-
 ---
-# Service to expose the calculator application to the internet.
-# It's a LoadBalancer type, which provides an external IP address.
+# 7. CALCULATOR APP SERVICE (Changed to ClusterIP)
 apiVersion: v1
 kind: Service
 metadata:
   name: calculator-app-service
+  namespace: sheela
 spec:
   selector:
     app: calculator-app
-  type: LoadBalancer
+  type: ClusterIP # Changed from LoadBalancer
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 8000
-
-
-
-
-
-# # This file defines all the necessary Kubernetes resources
-# # for the PostgreSQL database and the calculator application.
-
-# # --- PostgreSQL Database ---
-
-# # Secret to store sensitive information like the database password.
-# # It's referenced by the postgres-deployment.
-# apiVersion: v1
-# kind: Secret
-# metadata:
-#   name: postgres-db-secret
-# type: Opaque
-# stringData:
-#   POSTGRES_USER: user
-#   POSTGRES_PASSWORD: supersecretpassword123!
-#   POSTGRES_DB: my_database
-
-# ---
-# # Persistent Volume Claim (PVC) to request storage for the PostgreSQL database.
-# # This ensures that the database data persists even if the pod is restarted or moved.
-# apiVersion: v1
-# kind: PersistentVolumeClaim
-# metadata:
-#   name: postgres-pvc
-# spec:
-#   accessModes:
-#     - ReadWriteOnce
-#   resources:
-#     requests:
-#       storage: 1Gi
-
-# ---
-# # Deployment for the PostgreSQL database.
-# # This manages the single Pod running the database container.
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: postgres-deployment
-# spec:
-#   replicas: 1
-#   selector:
-#     matchLabels:
-#       app: postgres
-#   template:
-#     metadata:
-#       labels:
-#         app: postgres
-#     spec:
-#       containers:
-#         - name: postgres
-#           image: postgres:13
-#           env:
-#             # Set the PGDATA environment variable to use a subdirectory
-#             - name: PGDATA
-#               value: /var/lib/postgresql/data/pgdata
-#           envFrom:
-#             - secretRef:
-#                 name: postgres-db-secret
-#           ports:
-#             - containerPort: 5432
-#           volumeMounts:
-#             - name: postgres-storage
-#               mountPath: /var/lib/postgresql/data
-#       volumes:
-#         - name: postgres-storage
-#           persistentVolumeClaim:
-#             claimName: postgres-pvc
-
-# ---
-# # Service to expose the PostgreSQL database within the cluster.
-# # This allows the calculator app to connect to the database using the service name.
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: postgres-service
-# spec:
-#   selector:
-#     app: postgres
-#   ports:
-#     - protocol: TCP
-#       port: 5432
-#       targetPort: 5432
-# ---
-# # --- Calculator Application ---
-# # Secret for the application's database credentials
-# apiVersion: v1
-# kind: Secret
-# metadata:
-#   name: calculator-app-secret
-# type: Opaque
-# stringData:
-#   PGUSER: user
-#   PGPASSWORD: supersecretpassword123!
-#   PGDATABASE: my_database
-# ---
-
-# # Deployment for the calculator application.
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: calculator-app-deployment
-# spec:
-#   replicas: 1
-#   selector:
-#     matchLabels:
-#       app: calculator-app
-#   template:
-#     metadata:
-#       labels:
-#         app: calculator-app
-#     spec:
-#       # The init container ensures the database is ready and migrations are run
-#       # before the main Django application starts.
-#       initContainers:
-#         - name: wait-for-postgres
-#           image: busybox:1.36.1
-#           command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo "Waiting for database..."; sleep 2; done;']
-#         - name: migrate-db
-#           image: ngorongoro.azurecr.io/calculator_app:v1.5
-#           envFrom:
-#             - secretRef:
-#                 name: calculator-app-secret
-#           env:
-#             - name: PGHOST
-#               value: postgres-service
-#             - name: PGPORT
-#               value: "5432"
-#           command: ['python', 'manage.py', 'migrate']
-#       containers:
-#         - name: calculator-app
-#           # Updated the image tag to v1.5
-#           image: ngorongoro.azurecr.io/calculator_app:v1.5
-#           envFrom:
-#             - secretRef:
-#                 name: calculator-app-secret
-#           env:
-#             - name: PGHOST
-#               value: postgres-service
-#             - name: PGPORT
-#               value: "5432"
-#           # This container port must match the port the Django app is running on (8000).
-#           ports:
-#             - containerPort: 8000
-
-# ---
-# # Service to expose the calculator application to the internet.
-# # It's a LoadBalancer type, which provides an external IP address.
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: calculator-app-service
-# spec:
-#   selector:
-#     app: calculator-app
-#   type: LoadBalancer
-#   ports:
-#     - protocol: TCP
-#       port: 80
-#       targetPort: 8000
+      targetPort: 8000 
