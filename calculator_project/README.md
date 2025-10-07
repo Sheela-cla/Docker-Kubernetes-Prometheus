@@ -1,7 +1,7 @@
 # Complete Deployment Guide: Django Calculator (Docker, ACR, Istio)
 This guide provides step-by-step instructions for deploying the Python/Django Calculator application, which uses a PostgreSQL database, from your local machine to a Kubernetes cluster managed by Istio.
 
-The final application will be accessible at: **` https://calculator_app.com`**
+The final application will be accessible at: **` https://basic_calculator.com`**
 
 ## 1. Local Development (Docker & Docker Compose)
 Before deploying, ensure your application runs locally.
