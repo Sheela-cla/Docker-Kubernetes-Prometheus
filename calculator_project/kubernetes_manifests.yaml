@@ -8,7 +8,7 @@ metadata:
   namespace: sheela 
 spec:
   hosts:
-    - "calculator.dazzle.zebrain.se" 
+    - "basic_calculator.com" 
   gateways:
     - istio-system/ingress-gateway # Assumes Istio's default ingress gateway
   http:
